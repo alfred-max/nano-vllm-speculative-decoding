@@ -44,6 +44,7 @@ class LLMEngine:
         if isinstance(prompt, str):
             prompt = self.tokenizer.encode(prompt)
         seq = Sequence(prompt, sampling_params)
+        print("Start sequences len of seq_id", seq.seq_id, " : ", len(seq))
         self.scheduler.add(seq)
 
     def step(self):
@@ -52,6 +53,9 @@ class LLMEngine:
         token_ids = self.model_runner.call("run", seqs, is_prefill)
         self.scheduler.postprocess(seqs, token_ids, is_prefill)
         outputs = [(seq.seq_id, seq.completion_token_ids) for seq in seqs if seq.is_finished]
+        for seq in seqs:
+            if seq.is_finished:
+                print(f"End sequences len of seq_id {seq.seq_id}: {len(seq)}")
         return outputs, num_tokens
 
     def is_finished(self):
