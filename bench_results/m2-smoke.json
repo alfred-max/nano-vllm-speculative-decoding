@@ -1,0 +1,19 @@
+{
+  "tag": "m2-smoke",
+  "model": "/data/raid5/models/models--Qwen--Qwen3-8B/snapshots/2069b3fae1114555f3c020c81410e51fa0f656f2",
+  "commit": "a2a7aa7",
+  "timestamp": "2026-11-20T21:35:40",
+  "num_seqs": 2,
+  "input_tokens": 1688,
+  "output_tokens": 64,
+  "elapsed_s": 1.789,
+  "throughput_tok_s": 35.78,
+  "total_tok_s": 979.45,
+  "max_tokens": 32,
+  "temperature": 0.0,
+  "enforce_eager": true,
+  "max_num_seqs": 8,
+  "tensor_parallel_size": 1,
+  "gpu_memory_utilization": 0.9,
+  "outputs_file": "bench_results/m2-smoke.outputs.json"
+}
