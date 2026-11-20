@@ -56,9 +56,19 @@ def main():
     parser.add_argument("--enforce-eager", action="store_true")
     parser.add_argument("--out-dir", default="bench_results")
     parser.add_argument("--save-outputs", action="store_true", default=True)
+    parser.add_argument("--max-num-seqs", type=int, default=512)
+    parser.add_argument("--gpu-memory-utilization", type=float, default=0.9)
+    parser.add_argument("--tensor-parallel-size", type=int, default=1)
     args = parser.parse_args()
 
-    llm = LLM(args.model, enforce_eager=args.enforce_eager, max_model_len=args.max_model_len)
+    llm = LLM(
+        args.model,
+        enforce_eager=args.enforce_eager,
+        max_model_len=args.max_model_len,
+        max_num_seqs=args.max_num_seqs,
+        gpu_memory_utilization=args.gpu_memory_utilization,
+        tensor_parallel_size=args.tensor_parallel_size,
+    )
     prompts = load_prompts(args)
     sampling_params = [
         SamplingParams(temperature=args.temperature, max_tokens=args.max_tokens, ignore_eos=True)
@@ -87,6 +97,9 @@ def main():
         "max_tokens": args.max_tokens,
         "temperature": args.temperature,
         "enforce_eager": args.enforce_eager,
+        "max_num_seqs": args.max_num_seqs,
+        "tensor_parallel_size": args.tensor_parallel_size,
+        "gpu_memory_utilization": args.gpu_memory_utilization,
     }
 
     os.makedirs(args.out_dir, exist_ok=True)
