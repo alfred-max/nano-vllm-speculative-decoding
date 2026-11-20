@@ -59,6 +59,8 @@ def main():
     parser.add_argument("--max-num-seqs", type=int, default=512)
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.9)
     parser.add_argument("--tensor-parallel-size", type=int, default=1)
+    parser.add_argument("--spec", default="none", choices=["none", "naive"])
+    parser.add_argument("--num-speculative-tokens", type=int, default=7)
     args = parser.parse_args()
 
     llm = LLM(
@@ -68,6 +70,8 @@ def main():
         max_num_seqs=args.max_num_seqs,
         gpu_memory_utilization=args.gpu_memory_utilization,
         tensor_parallel_size=args.tensor_parallel_size,
+        spec_method=args.spec,
+        num_speculative_tokens=args.num_speculative_tokens,
     )
     prompts = load_prompts(args)
     sampling_params = [
@@ -100,6 +104,7 @@ def main():
         "max_num_seqs": args.max_num_seqs,
         "tensor_parallel_size": args.tensor_parallel_size,
         "gpu_memory_utilization": args.gpu_memory_utilization,
+        "spec": args.spec,
     }
 
     os.makedirs(args.out_dir, exist_ok=True)

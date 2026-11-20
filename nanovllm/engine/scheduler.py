@@ -92,3 +92,29 @@ class Scheduler:
                 seq.status = SequenceStatus.FINISHED
                 self.block_manager.deallocate(seq)
                 self.running.remove(seq)
+    
+    def postprocess_verify(self, seqs: list[Sequence], committed: list[list[int]]):
+        for seq, tokens in zip(seqs, committed):
+            budget = seq.max_tokens - seq.num_completion_tokens
+            kept = []
+            for t in tokens:
+                if len(kept) >= budget:
+                    break
+                kept.append(t)
+                if not seq.ignore_eos and t == self.eos:
+                    break
+            finished = (
+                bool(kept) and not seq.ignore_eos and kept[-1] == self.eos
+            ) or seq.num_completion_tokens + len(kept) >= seq.max_tokens
+
+            for t in kept:
+                seq.append_token(t)
+            seq.num_scheduled_tokens = len(kept)
+            self.block_manager.hash_blocks(seq)
+            seq.num_cached_tokens += len(kept)
+            seq.num_scheduled_tokens = 0
+
+            if finished:
+                seq.status = SequenceStatus.FINISHED
+                self.block_manager.deallocate(seq)
+                self.running.remove(seq)

@@ -17,6 +17,8 @@ class Config:
     kvcache_block_size: int = 256
     num_kvcache_blocks: int = -1
     num_speculative_tokens: int = 0       # γ：0 表示关闭投机解码
+    spec_method: str = "none"              # none | naive | dflash | dspark
+    num_speculative_tokens: int = 0
 
     def __post_init__(self):
         assert os.path.isdir(self.model)
@@ -25,3 +27,6 @@ class Config:
         self.hf_config = AutoConfig.from_pretrained(self.model)
         self.max_model_len = min(self.max_model_len, self.hf_config.max_position_embeddings)
         assert self.num_speculative_tokens >= 0
+        assert self.spec_method in ("none", "naive", "dflash", "dspark")
+        if self.spec_method != "none":
+            assert self.num_speculative_tokens > 0, "开启投机解码需要 num_speculative_tokens > 0"

@@ -32,6 +32,10 @@ class LLMEngine:
         self.tokenizer = AutoTokenizer.from_pretrained(config.model, use_fast=True)
         config.eos = self.tokenizer.eos_token_id
         self.scheduler = Scheduler(config)
+        self.spec_runtime = None
+        if config.spec_method != "none":
+            from nanovllm.engine.spec_runtime import SpecRuntime
+            self.spec_runtime = SpecRuntime(config, self.model_runner)
         atexit.register(self.exit)
 
     def exit(self):
@@ -47,15 +51,33 @@ class LLMEngine:
         # print("Start sequences len of seq_id", seq.seq_id, " : ", len(seq))
         self.scheduler.add(seq)
 
-    def step(self):
-        seqs, is_prefill = self.scheduler.schedule()
-        num_tokens = sum(seq.num_scheduled_tokens for seq in seqs) if is_prefill else -len(seqs)
-        token_ids = self.model_runner.call("run", seqs, is_prefill)
-        self.scheduler.postprocess(seqs, token_ids, is_prefill)
-        outputs = [(seq.seq_id, seq.completion_token_ids) for seq in seqs if seq.is_finished]
+    # def step(self):
+        # seqs, is_prefill = self.scheduler.schedule()
+        # num_tokens = sum(seq.num_scheduled_tokens for seq in seqs) if is_prefill else -len(seqs)
+        # token_ids = self.model_runner.call("run", seqs, is_prefill)
+        # self.scheduler.postprocess(seqs, token_ids, is_prefill)
+        # outputs = [(seq.seq_id, seq.completion_token_ids) for seq in seqs if seq.is_finished]
         # for seq in seqs:
         #     if seq.is_finished:
         #         print(f"End sequences len of seq_id {seq.seq_id}: {len(seq)}")
+        # return outputs, num_tokens
+    
+    def step(self):
+        seqs, is_prefill = self.scheduler.schedule()
+        if is_prefill:
+            num_tokens = sum(seq.num_scheduled_tokens for seq in seqs)
+            token_ids = self.model_runner.call("run", seqs, True)
+            self.scheduler.postprocess(seqs, token_ids, True)
+        elif self.spec_runtime is not None:
+            committed = self.spec_runtime.step(seqs)
+            self.scheduler.postprocess_verify(seqs, committed)
+            num_tokens = -sum(len(c) for c in committed)
+        else:
+            num_tokens = -len(seqs)
+            token_ids = self.model_runner.call("run", seqs, False)
+            self.scheduler.postprocess(seqs, token_ids, False)
+
+        outputs = [(seq.seq_id, seq.completion_token_ids) for seq in seqs if seq.is_finished]
         return outputs, num_tokens
 
     def is_finished(self):
