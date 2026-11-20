@@ -100,11 +100,19 @@ class BlockManager:
         seq.num_cached_tokens = 0
         seq.block_table.clear()
 
-    def can_append(self, seq: Sequence) -> bool:
-        return len(self.free_block_ids) >= (len(seq) % self.block_size == 1)
+    def num_new_blocks(self, seq: Sequence, num_tokens: int) -> int:
+        """覆盖本步要写的最后一个位置 len+num_tokens-2 还差几个 block。"""
+        last_pos = len(seq) + num_tokens - 2
+        if last_pos < 0:
+            return 0
+        needed = last_pos // self.block_size + 1
+        return max(0, needed - len(seq.block_table))
 
-    def may_append(self, seq: Sequence):
-        if len(seq) % self.block_size == 1:
+    def can_append(self, seq: Sequence, num_tokens: int = 1) -> bool:
+        return len(self.free_block_ids) >= self.num_new_blocks(seq, num_tokens)
+
+    def may_append(self, seq: Sequence, num_tokens: int = 1) -> None:
+        for _ in range(self.num_new_blocks(seq, num_tokens)):
             seq.block_table.append(self._allocate_block())
 
     def hash_blocks(self, seq: Sequence):
