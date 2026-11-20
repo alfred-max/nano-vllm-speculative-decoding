@@ -11,20 +11,24 @@ from nanovllm.spec.verify import verify_one
 def main():
     torch.manual_seed(0)
 
-    # 1) greedy：draft 全对 → 提交 γ+1 个；draft 错一位 → 在此截断
-    rows = torch.tensor([[0.0, 5.0, 1.0, 0.0]] * 3)
-    assert verify_one(rows, [1, 1, 1], [0.0, 0.0, 0.0], 0.0) == [1, 1, 1, 1]
-    assert verify_one(rows, [1, 2, 1], [0.0, 0.0, 0.0], 0.0) == [1, 1]
+    # 1) greedy：γ=3 → 需要 4 行
+    rows = torch.tensor([[0.0, 5.0, 1.0, 0.0]] * 4)      # argmax 每行都是 1
 
-    # 2) 采样：γ=1，draft=d，接受/拒绝合起来分布必须等于 p
-    rows = torch.tensor([[0.0, 1.0, 2.0, -1.0]] * 2)
+    # 全接受 → γ 个 draft + 1 个 bonus
+    assert verify_one(rows, [1, 1, 1], [0.0, 0.0, 0.0], 0.0) == [1, 1, 1, 1]
+    # 第 2 个 draft 错 → 在此截断，用 argmax 顶替
+    assert verify_one(rows, [1, 2, 1], [0.0, 0.0, 0.0], 0.0) == [1, 1]
+    # γ=0 退化：等价于普通 decode
+    assert verify_one(rows[:1], [], [], 0.0) == [1]
+
+    # 2) 采样：γ=1，接受/拒绝合起来分布必须等于 p
+    rows = torch.tensor([[0.0, 1.0, 2.0, -1.0]] * 2)     # 2 = 1 + γ
     p = torch.softmax(rows[0], dim=-1)
     d = 1
     counts = torch.zeros(4)
     n = 20000
     for _ in range(n):
-        out = verify_one(rows, [d], [0.0], 1.0)
-        counts[out[0]] += 1
+        counts[verify_one(rows, [d], [0.0], 1.0)[0]] += 1
     freq = counts / n
     err = (freq - p).abs().max().item()
     print("p      =", [round(x, 4) for x in p.tolist()])

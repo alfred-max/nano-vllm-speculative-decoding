@@ -107,6 +107,15 @@ def main():
         "spec": args.spec,
     }
 
+    if getattr(llm, "spec_runtime", None) is not None:
+        s = llm.spec_runtime.stats
+        result["spec_stats"] = {
+            "steps": s.steps,
+            "seq_steps": s.seq_steps,
+            "accept_len": round(s.accept_len, 3),
+            "accept_rate": round(s.accept_rate, 3),
+        }
+
     os.makedirs(args.out_dir, exist_ok=True)
     if args.save_outputs:
         outputs_path = os.path.join(args.out_dir, f"{args.tag}.outputs.json")
@@ -115,6 +124,7 @@ def main():
         result["outputs_file"] = outputs_path
 
     result_path = os.path.join(args.out_dir, f"{args.tag}.json")
+
     with open(result_path, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
     print(json.dumps(result, ensure_ascii=False, indent=2))

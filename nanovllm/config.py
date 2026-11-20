@@ -28,5 +28,7 @@ class Config:
         self.max_model_len = min(self.max_model_len, self.hf_config.max_position_embeddings)
         assert self.num_speculative_tokens >= 0
         assert self.spec_method in ("none", "naive", "dflash", "dspark")
-        if self.spec_method != "none":
+        if self.spec_method == "none":
+            self.num_speculative_tokens = 0        # 关闭时必须归零
+        else:
             assert self.num_speculative_tokens > 0, "开启投机解码需要 num_speculative_tokens > 0"

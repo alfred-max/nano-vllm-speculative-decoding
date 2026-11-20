@@ -1,0 +1,25 @@
+{
+  "tag": "m4-naive",
+  "model": "/data/raid5/models/models--Qwen--Qwen3-8B/snapshots/2069b3fae1114555f3c020c81410e51fa0f656f2",
+  "commit": "3460f8e",
+  "timestamp": "2026-11-21T00:11:03",
+  "num_seqs": 16,
+  "input_tokens": 8743,
+  "output_tokens": 768,
+  "elapsed_s": 1.597,
+  "throughput_tok_s": 481.0,
+  "total_tok_s": 5956.8,
+  "max_tokens": 48,
+  "temperature": 0.0,
+  "enforce_eager": false,
+  "max_num_seqs": 16,
+  "tensor_parallel_size": 1,
+  "gpu_memory_utilization": 0.9,
+  "spec": "naive",
+  "outputs_file": "bench_results/m4-naive.outputs.json",
+  "spec_stats": {
+    "steps": 19,
+    "accept_len": 40.789,
+    "accept_rate": 0.97
+  }
+}

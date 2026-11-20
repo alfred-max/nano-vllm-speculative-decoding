@@ -4,7 +4,25 @@ from nanovllm.config import Config
 from nanovllm.engine.sequence import Sequence
 from nanovllm.spec.drafter import build_drafter
 from nanovllm.spec.verify import verify_one
+from dataclasses import dataclass, field
 
+
+@dataclass
+class SpecStats:
+    steps: int = 0
+    seq_steps: int = 0
+    committed: int = 0
+    drafted: int = 0
+    accepted: int = 0
+
+    @property
+    def accept_len(self) -> float:
+        """τ：平均每步每序列提交的 token 数（1 + 平均接受数）"""
+        return self.committed / self.seq_steps if self.seq_steps else 0.0
+
+    @property
+    def accept_rate(self) -> float:
+        return self.accepted / self.drafted if self.drafted else 0.0
 
 class SpecRuntime:
 
@@ -13,6 +31,7 @@ class SpecRuntime:
         self.model_runner = model_runner
         self.gamma = config.num_speculative_tokens
         self.drafter = build_drafter(config)
+        self.stats = SpecStats()
 
     def step(self, seqs: list[Sequence]) -> list[list[int]]:
         proposal = self.drafter.propose(seqs, self.gamma)
@@ -37,4 +56,13 @@ class SpecRuntime:
             rows = logits[offset:offset + n]
             offset += n
             committed.append(verify_one(rows, drafts, lps, seq.temperature))
+
+        self.stats.steps += 1
+        self.stats.seq_steps += len(seqs)
+        for seq, c, d in zip(seqs, committed, keep_tokens):
+            keep = min(len(c), seq.max_tokens - seq.num_completion_tokens)
+            self.stats.committed += keep
+            self.stats.drafted += len(d)
+            self.stats.accepted += max(0, keep - 1)
+
         return committed
