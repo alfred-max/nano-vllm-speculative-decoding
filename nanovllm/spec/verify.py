@@ -20,14 +20,14 @@ def verify_one(rows: torch.Tensor, drafts: list[int], draft_logprobs: list[float
     gamma = len(drafts)
 
     if temperature <= 1e-10:
-        best = rows.argmax(dim=-1)
+        best = rows.argmax(dim=-1).tolist()      # 一次同步
         out = []
         for i, d in enumerate(drafts):
-            if int(best[i]) != d:
-                out.append(int(best[i]))
+            if best[i] != d:
+                out.append(best[i])
                 return out
             out.append(d)
-        out.append(int(best[gamma]))
+        out.append(best[gamma])
         return out
 
     probs = torch.softmax(rows.float() / temperature, dim=-1)

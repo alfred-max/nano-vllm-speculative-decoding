@@ -1,0 +1,26 @@
+{
+  "tag": "y-df-b",
+  "model": "/home/shijiawei/models/Qwen3-8B",
+  "commit": "f4322d4",
+  "timestamp": "2026-11-22T19:05:40",
+  "num_seqs": 4,
+  "input_tokens": 2680,
+  "output_tokens": 128,
+  "elapsed_s": 2.717,
+  "throughput_tok_s": 47.11,
+  "total_tok_s": 1033.45,
+  "max_tokens": 32,
+  "temperature": 0.0,
+  "enforce_eager": false,
+  "max_num_seqs": 4,
+  "tensor_parallel_size": 1,
+  "gpu_memory_utilization": 0.9,
+  "spec": "dflash",
+  "spec_stats": {
+    "steps": 38,
+    "seq_steps": 93,
+    "accept_len": 1.409,
+    "accept_rate": 0.066
+  },
+  "outputs_file": "bench_results/y-df-b.outputs.json"
+}

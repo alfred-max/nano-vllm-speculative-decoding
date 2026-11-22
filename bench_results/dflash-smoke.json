@@ -1,0 +1,26 @@
+{
+  "tag": "dflash-smoke",
+  "model": "/home/shijiawei/models/Qwen3-8B",
+  "commit": "f4322d4",
+  "timestamp": "2026-11-22T18:46:30",
+  "num_seqs": 4,
+  "input_tokens": 2680,
+  "output_tokens": 256,
+  "elapsed_s": 5.651,
+  "throughput_tok_s": 45.3,
+  "total_tok_s": 519.58,
+  "max_tokens": 64,
+  "temperature": 0.0,
+  "enforce_eager": false,
+  "max_num_seqs": 4,
+  "tensor_parallel_size": 1,
+  "gpu_memory_utilization": 0.9,
+  "spec": "dflash",
+  "spec_stats": {
+    "steps": 69,
+    "seq_steps": 165,
+    "accept_len": 1.57,
+    "accept_rate": 0.087
+  },
+  "outputs_file": "bench_results/dflash-smoke.outputs.json"
+}

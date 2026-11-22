@@ -1,0 +1,26 @@
+{
+  "tag": "dflash-g",
+  "model": "/home/shijiawei/models/Qwen3-8B",
+  "commit": "f4322d4",
+  "timestamp": "2026-11-22T18:48:58",
+  "num_seqs": 16,
+  "input_tokens": 8743,
+  "output_tokens": 1536,
+  "elapsed_s": 9.885,
+  "throughput_tok_s": 155.39,
+  "total_tok_s": 1039.86,
+  "max_tokens": 96,
+  "temperature": 0.0,
+  "enforce_eager": false,
+  "max_num_seqs": 16,
+  "tensor_parallel_size": 1,
+  "gpu_memory_utilization": 0.9,
+  "spec": "dflash",
+  "spec_stats": {
+    "steps": 102,
+    "seq_steps": 600,
+    "accept_len": 2.545,
+    "accept_rate": 0.228
+  },
+  "outputs_file": "bench_results/dflash-g.outputs.json"
+}

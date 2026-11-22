@@ -1,0 +1,26 @@
+{
+  "tag": "x-naive",
+  "model": "/home/shijiawei/models/Qwen3-8B",
+  "commit": "f4322d4",
+  "timestamp": "2026-11-22T18:58:02",
+  "num_seqs": 4,
+  "input_tokens": 2680,
+  "output_tokens": 128,
+  "elapsed_s": 1.989,
+  "throughput_tok_s": 64.36,
+  "total_tok_s": 1411.98,
+  "max_tokens": 32,
+  "temperature": 0.0,
+  "enforce_eager": false,
+  "max_num_seqs": 4,
+  "tensor_parallel_size": 1,
+  "gpu_memory_utilization": 0.9,
+  "spec": "naive",
+  "spec_stats": {
+    "steps": 37,
+    "seq_steps": 97,
+    "accept_len": 1.351,
+    "accept_rate": 0.122
+  },
+  "outputs_file": "bench_results/x-naive.outputs.json"
+}

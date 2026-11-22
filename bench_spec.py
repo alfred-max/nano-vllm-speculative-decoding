@@ -10,21 +10,41 @@ import os
 import subprocess
 import time
 from random import Random
+import torch
+torch._dynamo.config.cache_size_limit = 64
 
 from nanovllm import LLM, SamplingParams
 
 
+def _pick_messages(item):
+    """把一行 JSONL 还原成 messages 列表。"""
+    turns = item.get("turns")
+    if isinstance(turns, list) and turns:
+        msgs = []
+        for i, t in enumerate(turns):
+            if isinstance(t, dict):
+                msgs.append(t)
+            else:
+                msgs.append({"role": "user" if i % 2 == 0 else "assistant", "content": str(t)})
+        return msgs
+    for key in ("prompt", "question", "problem", "instruction", "query", "text", "content"):
+        v = item.get(key)
+        if isinstance(v, str) and v:
+            return [{"role": "user", "content": v}]
+    if isinstance(item.get("messages"), list):
+        return item["messages"]
+    raise KeyError(f"无法解析这一行，字段: {list(item.keys())}")
+
+
 def load_prompts(args):
     if args.prompt_file:
-        prompts = []
+        out = []
         with open(args.prompt_file, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if not line:
-                    continue
-                item = json.loads(line)
-                prompts.append(item.get("prompt") or item.get("question") or item["text"])
-        return prompts[: args.num_seqs]
+                if line:
+                    out.append(_pick_messages(json.loads(line)))
+        return out[: args.num_seqs]
     rng = Random(args.seed)
     return [
         [rng.randint(0, 10000) for _ in range(rng.randint(args.min_input_len, args.max_input_len))]
@@ -59,8 +79,10 @@ def main():
     parser.add_argument("--max-num-seqs", type=int, default=512)
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.9)
     parser.add_argument("--tensor-parallel-size", type=int, default=1)
-    parser.add_argument("--spec", default="none", choices=["none", "naive"])
     parser.add_argument("--num-speculative-tokens", type=int, default=7)
+    parser.add_argument("--spec", default="none", choices=["none", "naive", "dflash"])
+    parser.add_argument("--draft-model", default=None)
+    parser.add_argument("--chat-template", action="store_true")
     args = parser.parse_args()
 
     llm = LLM(
@@ -72,8 +94,28 @@ def main():
         tensor_parallel_size=args.tensor_parallel_size,
         spec_method=args.spec,
         num_speculative_tokens=args.num_speculative_tokens,
+        draft_model=args.draft_model,
     )
     prompts = load_prompts(args)
+    tok = llm.tokenizer
+    if prompts and isinstance(prompts[0], list):
+        if args.chat_template:
+            texts = [
+                tok.apply_chat_template(m, add_generation_prompt=True,
+                                        tokenize=False, enable_thinking=False)
+                for m in prompts
+            ]
+            prompts = [tok(t, add_special_tokens=False)["input_ids"] for t in texts]
+        else:
+            prompts = [m[-1]["content"] for m in prompts]
+    if args.chat_template:
+        tok = llm.tokenizer
+        prompts = [
+            tok.apply_chat_template([{"role": "user", "content": p}],
+                                    add_generation_prompt=True, tokenize=False,
+                                    enable_thinking=False) if isinstance(p, str) else p
+            for p in prompts
+        ]
     sampling_params = [
         SamplingParams(temperature=args.temperature, max_tokens=args.max_tokens, ignore_eos=True)
         for _ in prompts
@@ -105,6 +147,8 @@ def main():
         "tensor_parallel_size": args.tensor_parallel_size,
         "gpu_memory_utilization": args.gpu_memory_utilization,
         "spec": args.spec,
+        "prompt_file": args.prompt_file,
+        "chat_template": args.chat_template,
     }
 
     if getattr(llm, "spec_runtime", None) is not None:

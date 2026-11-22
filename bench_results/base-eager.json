@@ -1,0 +1,22 @@
+{
+  "tag": "base-eager",
+  "model": "/home/shijiawei/models/Qwen3-8B",
+  "commit": "f4322d4",
+  "timestamp": "2026-11-22T23:06:28",
+  "num_seqs": 1,
+  "input_tokens": 92,
+  "output_tokens": 128,
+  "elapsed_s": 4.949,
+  "throughput_tok_s": 25.87,
+  "total_tok_s": 44.46,
+  "max_tokens": 128,
+  "temperature": 0.0,
+  "enforce_eager": true,
+  "max_num_seqs": 1,
+  "tensor_parallel_size": 1,
+  "gpu_memory_utilization": 0.9,
+  "spec": "none",
+  "prompt_file": "/home/shijiawei/program/DeepSpec/eval_datasets/gsm8k.jsonl",
+  "chat_template": true,
+  "outputs_file": "bench_results/base-eager.outputs.json"
+}

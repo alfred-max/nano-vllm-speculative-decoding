@@ -18,7 +18,12 @@ class Config:
     num_kvcache_blocks: int = -1
     num_speculative_tokens: int = 0       # γ：0 表示关闭投机解码
     spec_method: str = "none"              # none | naive | dflash | dspark
+    draft_model: str | None = None
     num_speculative_tokens: int = 0
+    # drafter 的 K/V 几何，由 LLMEngine 在加载后填入，用于给 KV 预算留空间
+    drafter_layers: int = 0
+    drafter_kv_heads: int = 0
+    drafter_head_dim: int = 0
 
     def __post_init__(self):
         assert os.path.isdir(self.model)
@@ -32,3 +37,5 @@ class Config:
             self.num_speculative_tokens = 0        # 关闭时必须归零
         else:
             assert self.num_speculative_tokens > 0, "开启投机解码需要 num_speculative_tokens > 0"
+            if self.spec_method in ("dflash", "dspark"):
+                assert self.draft_model and os.path.isdir(self.draft_model), "需要 draft_model 指向本地目录"

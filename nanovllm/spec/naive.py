@@ -12,7 +12,7 @@ class NaiveDrafter(Drafter):
     def __init__(self, config):
         self.gamma = config.num_speculative_tokens
 
-    def propose(self, seqs, gamma: int) -> DraftProposal:
-        tokens = [[seq.last_token] * gamma for seq in seqs]
-        logprobs = [[0.0] * gamma for _ in seqs]
+    def propose(self, seqs) -> DraftProposal:
+        tokens = [[seq.last_token] * self.gamma for seq in seqs]
+        logprobs = [[0.0] * self.gamma for _ in seqs]
         return DraftProposal(tokens, logprobs)

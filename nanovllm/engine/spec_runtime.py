@@ -1,4 +1,5 @@
 import torch
+import time
 
 from nanovllm.config import Config
 from nanovllm.engine.sequence import Sequence
@@ -27,36 +28,66 @@ class SpecStats:
 class SpecRuntime:
 
     def __init__(self, config: Config, model_runner):
+        self._dbg = 0
         self.config = config
         self.model_runner = model_runner
         self.gamma = config.num_speculative_tokens
-        self.drafter = build_drafter(config)
+        self.needs_hidden = config.spec_method in ("dflash", "dspark")
         self.stats = SpecStats()
+        if self.needs_hidden:
+            from transformers import AutoConfig
+            from nanovllm.spec.dflash import DFlashDrafter
+            dcfg = AutoConfig.from_pretrained(config.draft_model)
+            self.drafter = DFlashDrafter(
+                dcfg, config.draft_model, self.gamma,
+                num_blocks=config.num_kvcache_blocks,
+                block_size=config.kvcache_block_size,
+            )
+        else:
+            self.drafter = build_drafter(config)
 
-    def step(self, seqs: list[Sequence]) -> list[list[int]]:
-        proposal = self.drafter.propose(seqs, self.gamma)
+    def ingest(self, seqs, keep=None):
+        if not self.needs_hidden:
+            return
+        aux, positions, cu = self.model_runner.take_aux()
+        if aux is None:
+            return
+        self.drafter.ingest(seqs, aux, positions, cu, keep=keep)
+
+    def step(self, seqs):
+        torch.cuda.synchronize(); t0 = time.perf_counter()
+        proposal = self.drafter.propose(seqs)
+        torch.cuda.synchronize(); t1 = time.perf_counter()
 
         keep_tokens, keep_logprobs = [], []
         for seq, toks, lps in zip(seqs, proposal.token_ids, proposal.logprobs):
-            budget = min(
+            budget = max(0, min(
                 self.gamma,
                 seq.max_tokens - seq.num_completion_tokens,
                 self.config.max_model_len - len(seq),
-            )
-            budget = max(0, budget)
+            ))
             seq.draft_token_ids = toks[:budget]
             keep_tokens.append(seq.draft_token_ids)
             keep_logprobs.append(lps[:budget])
 
         logits = self.model_runner.call("run_verify", seqs)
+        torch.cuda.synchronize(); t2 = time.perf_counter()
 
         committed, offset = [], 0
         for seq, drafts, lps in zip(seqs, keep_tokens, keep_logprobs):
             n = 1 + len(drafts)
-            rows = logits[offset:offset + n]
+            committed.append(verify_one(logits[offset:offset + n], drafts, lps, seq.temperature))
             offset += n
-            committed.append(verify_one(rows, drafts, lps, seq.temperature))
+        torch.cuda.synchronize(); t3 = time.perf_counter()
 
+        self.ingest(seqs, keep=[len(c) for c in committed])
+        torch.cuda.synchronize(); t4 = time.perf_counter()
+
+        self._dbg += 1
+        if self._dbg <= 6:
+            print(f"[timing] propose={1000*(t1-t0):6.1f}  verify={1000*(t2-t1):6.1f}  "
+                  f"commit={1000*(t3-t2):5.1f}  ingest={1000*(t4-t3):5.1f} ms")
+                  
         self.stats.steps += 1
         self.stats.seq_steps += len(seqs)
         for seq, c, d in zip(seqs, committed, keep_tokens):
@@ -64,5 +95,6 @@ class SpecRuntime:
             self.stats.committed += keep
             self.stats.drafted += len(d)
             self.stats.accepted += max(0, keep - 1)
-
+        print(f"[dbg] drafts={[len(d) for d in keep_tokens]} committed={[len(c) for c in committed]} "
+              f"lens={[len(s) for s in seqs]}")
         return committed

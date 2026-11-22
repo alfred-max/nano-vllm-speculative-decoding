@@ -31,6 +31,17 @@ class ModelRunner:
         torch.set_default_device("cuda")
         self.model = Qwen3ForCausalLM(hf_config)
         load_model(self.model, config.model)
+
+        self.collector = None
+        self.last_aux = None
+        self.aux_positions = None
+        self.aux_cu_seqlens = None
+        if config.spec_method in ("dflash", "dspark") and rank == 0:
+            from transformers import AutoConfig
+            from nanovllm.engine.target_hidden import TargetHiddenCollector
+            dcfg = AutoConfig.from_pretrained(config.draft_model)
+            self.collector = TargetHiddenCollector(self.model, dcfg.target_layer_ids, 0)
+
         self.sampler = Sampler()
         self.warmup_model()
         self.allocate_kv_cache()
@@ -110,7 +121,10 @@ class ModelRunner:
         current = torch.cuda.memory_stats()["allocated_bytes.all.current"]
         num_kv_heads = hf_config.num_key_value_heads // self.world_size
         head_dim = getattr(hf_config, "head_dim", hf_config.hidden_size // hf_config.num_attention_heads)
-        block_bytes = 2 * hf_config.num_hidden_layers * self.block_size * num_kv_heads * head_dim * hf_config.dtype.itemsize
+        itemsize = hf_config.dtype.itemsize
+        block_bytes = 2 * hf_config.num_hidden_layers * self.block_size * num_kv_heads * head_dim * itemsize
+        if config.drafter_layers > 0:
+            block_bytes += 2 * config.drafter_layers * self.block_size * config.drafter_kv_heads * config.drafter_head_dim * itemsize
         config.num_kvcache_blocks = int(total * config.gpu_memory_utilization - used - peak + current) // block_bytes
         assert config.num_kvcache_blocks > 0
         self.kv_cache = torch.empty(2, hf_config.num_hidden_layers, config.num_kvcache_blocks, self.block_size, num_kv_heads, head_dim)
@@ -168,6 +182,8 @@ class ModelRunner:
         cu_seqlens_k = torch.tensor(cu_seqlens_k, dtype=torch.int32, pin_memory=True).cuda(non_blocking=True)
         slot_mapping = torch.tensor(slot_mapping, dtype=torch.int32, pin_memory=True).cuda(non_blocking=True)
         set_context("prefill", cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k, slot_mapping, None, block_tables)
+        self.aux_positions = positions
+        self.aux_cu_seqlens = cu_seqlens_q.tolist()
         return input_ids, positions
 
     def prepare_decode(self, seqs: list[Sequence]):
@@ -217,6 +233,8 @@ class ModelRunner:
         slot_mapping = torch.tensor(slot_mapping, dtype=torch.int32, pin_memory=True).cuda(non_blocking=True)
         block_tables = self.prepare_block_tables(seqs)
         set_context("verify", cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k, slot_mapping, None, block_tables)
+        self.aux_positions = positions
+        self.aux_cu_seqlens = cu_seqlens_q.tolist()
         return input_ids, positions
 
     def prepare_sample(self, seqs: list[Sequence]):
@@ -227,7 +245,11 @@ class ModelRunner:
     @torch.inference_mode()
     def run_model(self, input_ids: torch.Tensor, positions: torch.Tensor, mode: str = "decode"):
         if mode != "decode" or self.enforce_eager or input_ids.size(0) > 512:
-            return self.model.compute_logits(self.model(input_ids, positions))
+            hidden = self.model(input_ids, positions)
+            logits = self.model.compute_logits(hidden)
+            if self.collector is not None:
+                self.last_aux = self.collector.take()
+            return logits
         else:
             bs = input_ids.size(0)
             context = get_context()
@@ -294,3 +316,8 @@ class ModelRunner:
             block_tables=block_tables,
             outputs=outputs,
         )
+
+    def take_aux(self):
+        aux, positions, cu = self.last_aux, self.aux_positions, self.aux_cu_seqlens
+        self.last_aux = None
+        return aux, positions, cu

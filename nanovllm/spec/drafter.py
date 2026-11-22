@@ -3,7 +3,7 @@ from nanovllm.spec.types import DraftProposal
 
 class Drafter:
 
-    def propose(self, seqs, gamma: int) -> DraftProposal:
+    def propose(self, seqs) -> DraftProposal:
         raise NotImplementedError
 
     def reset(self):

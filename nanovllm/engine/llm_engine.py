@@ -18,6 +18,12 @@ class LLMEngine:
         config_fields = {field.name for field in fields(Config)}
         config_kwargs = {k: v for k, v in kwargs.items() if k in config_fields}
         config = Config(model, **config_kwargs)
+        if config.spec_method in ("dflash", "dspark"):
+            from transformers import AutoConfig
+            dcfg = AutoConfig.from_pretrained(config.draft_model)
+            config.drafter_layers = dcfg.num_hidden_layers
+            config.drafter_kv_heads = dcfg.num_key_value_heads
+            config.drafter_head_dim = dcfg.head_dim
         self.config = config
         Sequence.block_size = config.kvcache_block_size
         self.ps = []
@@ -68,6 +74,8 @@ class LLMEngine:
         if is_prefill:
             num_tokens = sum(seq.num_scheduled_tokens for seq in seqs)
             token_ids = self.model_runner.call("run", seqs, True)
+            if self.spec_runtime is not None:
+                self.spec_runtime.ingest(seqs)
             self.scheduler.postprocess(seqs, token_ids, True)
         elif self.spec_runtime is not None:
             committed = self.spec_runtime.step(seqs)

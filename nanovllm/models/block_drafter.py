@@ -68,6 +68,21 @@ class DrafterAttention(nn.Module):
         )
         return self.o_proj(o.reshape(-1, self.num_heads * self.head_dim))
 
+    # DrafterAttention 里追加
+    def forward_cached(self, x, k_ctx, v_ctx, rope, q_pos, cu_q, cu_k, max_q, max_k):
+        q = self.q_proj(x).view(-1, self.num_heads, self.head_dim)
+        q = _apply_rope(rope, self.q_norm(q), q_pos)
+
+        k_blk = self.k_proj(x).view(-1, self.num_kv_heads, self.head_dim)
+        v_blk = self.v_proj(x).view(-1, self.num_kv_heads, self.head_dim)
+        k_blk = _apply_rope(rope, self.k_norm(k_blk), q_pos)
+
+        k, v = _pack_kv(k_ctx, v_ctx, k_blk, v_blk, cu_q, cu_k)
+        cu_q_t = torch.tensor(cu_q, dtype=torch.int32, device=x.device)
+        cu_k_t = torch.tensor(cu_k, dtype=torch.int32, device=x.device)
+        o = flash_attn_varlen_func(q, k, v, cu_q_t, cu_k_t, max_q, max_k,
+                                   causal=False, softmax_scale=self.scaling)
+        return self.o_proj(o.reshape(-1, self.num_heads * self.head_dim))
 
 class DrafterMLP(nn.Module):
 
@@ -102,6 +117,15 @@ class DrafterLayer(nn.Module):
         h = self.post_attention_layernorm(x)
         return residual + self.mlp(h)
 
+    # DrafterLayer 里追加
+    def forward_cached(self, x, k_ctx, v_ctx, rope, q_pos, cu_q, cu_k, max_q, max_k):
+        residual = x
+        h = self.input_layernorm(x)
+        h = self.self_attn.forward_cached(h, k_ctx, v_ctx, rope, q_pos, cu_q, cu_k, max_q, max_k)
+        x = residual + h
+        residual = x
+        h = self.post_attention_layernorm(x)
+        return residual + self.mlp(h)
 
 class BlockDrafter(nn.Module):
 
@@ -153,3 +177,31 @@ class BlockDrafter(nn.Module):
                       cu_q, cu_k, W, max_k)
         h = self.norm(h)
         return self.lm_head(h).view(B, W, -1)
+    
+    # BlockDrafter 里追加
+    @torch.inference_mode()
+    def draft_block_cached(self, anchor_ids, ctx_k, ctx_v, ctx_lens):
+        """ctx_k/ctx_v: [num_layers, sum(ctx_lens), kv_heads, dim]，已做完 k_norm + RoPE。"""
+        B, W = anchor_ids.shape[0], self.block_size
+        device = anchor_ids.device
+
+        block_ids = torch.full((B, W), self.mask_token_id, dtype=torch.long, device=device)
+        block_ids[:, 0] = anchor_ids
+
+        cu_q, cu_k, q_pos = [], [], []
+        q_off = k_off = 0
+        for L in ctx_lens:
+            cu_q.append(q_off)
+            cu_k.append(k_off)
+            q_pos.append(torch.arange(L, L + W, device=device))
+            q_off += W
+            k_off += L + W
+        cu_q.append(q_off)
+        cu_k.append(k_off)
+        max_k = max(L + W for L in ctx_lens)
+
+        h = self.embed_tokens(block_ids).view(-1, self.hidden_size)
+        for i, layer in enumerate(self.layers):
+            h = layer.forward_cached(h, ctx_k[i], ctx_v[i], self.rotary_emb,
+                                     torch.cat(q_pos), cu_q, cu_k, W, max_k)
+        return self.lm_head(self.norm(h)).view(B, W, -1)

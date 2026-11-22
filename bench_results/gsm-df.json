@@ -1,0 +1,28 @@
+{
+  "tag": "gsm-df",
+  "model": "/home/shijiawei/models/Qwen3-8B",
+  "commit": "f4322d4",
+  "timestamp": "2026-11-22T19:34:03",
+  "num_seqs": 32,
+  "input_tokens": 2751,
+  "output_tokens": 4096,
+  "elapsed_s": 5.356,
+  "throughput_tok_s": 764.77,
+  "total_tok_s": 1278.41,
+  "max_tokens": 128,
+  "temperature": 0.0,
+  "enforce_eager": false,
+  "max_num_seqs": 32,
+  "tensor_parallel_size": 1,
+  "gpu_memory_utilization": 0.9,
+  "spec": "dflash",
+  "prompt_file": "/home/shijiawei/program/DeepSpec/eval_datasets/gsm8k.jsonl",
+  "chat_template": true,
+  "spec_stats": {
+    "steps": 43,
+    "seq_steps": 764,
+    "accept_len": 5.329,
+    "accept_rate": 0.633
+  },
+  "outputs_file": "bench_results/gsm-df.outputs.json"
+}

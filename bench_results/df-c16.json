@@ -1,0 +1,28 @@
+{
+  "tag": "df-c16",
+  "model": "/home/shijiawei/models/Qwen3-8B",
+  "commit": "f4322d4",
+  "timestamp": "2026-11-22T19:51:12",
+  "num_seqs": 16,
+  "input_tokens": 1454,
+  "output_tokens": 2048,
+  "elapsed_s": 4.648,
+  "throughput_tok_s": 440.62,
+  "total_tok_s": 753.44,
+  "max_tokens": 128,
+  "temperature": 0.0,
+  "enforce_eager": false,
+  "max_num_seqs": 16,
+  "tensor_parallel_size": 1,
+  "gpu_memory_utilization": 0.9,
+  "spec": "dflash",
+  "prompt_file": "/home/shijiawei/program/DeepSpec/eval_datasets/gsm8k.jsonl",
+  "chat_template": true,
+  "spec_stats": {
+    "steps": 39,
+    "seq_steps": 394,
+    "accept_len": 5.175,
+    "accept_rate": 0.614
+  },
+  "outputs_file": "bench_results/df-c16.outputs.json"
+}

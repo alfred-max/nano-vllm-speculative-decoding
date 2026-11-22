@@ -1,0 +1,28 @@
+{
+  "tag": "t-c32",
+  "model": "/home/shijiawei/models/Qwen3-8B",
+  "commit": "f4322d4",
+  "timestamp": "2026-11-22T22:50:29",
+  "num_seqs": 32,
+  "input_tokens": 2751,
+  "output_tokens": 768,
+  "elapsed_s": 1.448,
+  "throughput_tok_s": 530.43,
+  "total_tok_s": 2430.46,
+  "max_tokens": 24,
+  "temperature": 0.0,
+  "enforce_eager": false,
+  "max_num_seqs": 32,
+  "tensor_parallel_size": 1,
+  "gpu_memory_utilization": 0.9,
+  "spec": "dflash",
+  "prompt_file": "/home/shijiawei/program/DeepSpec/eval_datasets/gsm8k.jsonl",
+  "chat_template": true,
+  "spec_stats": {
+    "steps": 14,
+    "seq_steps": 168,
+    "accept_len": 4.423,
+    "accept_rate": 0.553
+  },
+  "outputs_file": "bench_results/t-c32.outputs.json"
+}
