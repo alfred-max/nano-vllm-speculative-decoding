@@ -1,0 +1,26 @@
+{
+  "tag": "m4-real-naive",
+  "model": "/home/shijiawei/models/Qwen3-8B",
+  "commit": "a23aebe",
+  "timestamp": "2026-11-22T16:06:45",
+  "num_seqs": 3,
+  "input_tokens": 63,
+  "output_tokens": 192,
+  "elapsed_s": 3.517,
+  "throughput_tok_s": 54.59,
+  "total_tok_s": 72.5,
+  "max_tokens": 64,
+  "temperature": 0.0,
+  "enforce_eager": false,
+  "max_num_seqs": 3,
+  "tensor_parallel_size": 1,
+  "gpu_memory_utilization": 0.9,
+  "spec": "naive",
+  "spec_stats": {
+    "steps": 70,
+    "seq_steps": 196,
+    "accept_len": 1.0,
+    "accept_rate": 0.0
+  },
+  "outputs_file": "bench_results/m4-real-naive.outputs.json"
+}
