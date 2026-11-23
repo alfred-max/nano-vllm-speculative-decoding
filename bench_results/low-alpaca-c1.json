@@ -1,0 +1,30 @@
+{
+  "tag": "low-alpaca-c1",
+  "model": "/home/shijiawei/models/Qwen3-8B",
+  "commit": "833483c",
+  "timestamp": "2026-11-23T17:34:47",
+  "num_seqs": 1,
+  "input_tokens": 19,
+  "output_tokens": 96,
+  "elapsed_s": 2.297,
+  "throughput_tok_s": 41.8,
+  "total_tok_s": 50.08,
+  "max_tokens": 96,
+  "temperature": 0.0,
+  "enforce_eager": false,
+  "max_num_seqs": 1,
+  "tensor_parallel_size": 1,
+  "gpu_memory_utilization": 0.9,
+  "spec": "dspark",
+  "prompt_file": "/home/shijiawei/program/DeepSpec/eval_datasets/alpaca.jsonl",
+  "chat_template": true,
+  "spec_adaptive": true,
+  "spec_stats": {
+    "steps": 19,
+    "seq_steps": 19,
+    "accept_len": 5.368,
+    "accept_rate": 0.624,
+    "mean_rows": 8.0
+  },
+  "outputs_file": "bench_results/low-alpaca-c1.outputs.json"
+}

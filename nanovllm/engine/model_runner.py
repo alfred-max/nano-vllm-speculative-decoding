@@ -62,7 +62,7 @@ class ModelRunner:
                     fit = self.profile_verify_cost()
                     if fit is not None:
                         self.cost_a, self.cost_b = fit
-                        print(f"[cost] T(V) = {self.cost_a:.2f} + {self.cost_b*1e6:.2f}e-6 * V  ms (V = bs*rows)")
+                        print(f"[cost] T(V) = {self.cost_a*1000:.2f} ms + {self.cost_b*1e6:.2f}e-6 * V   (V = bs*rows)")
         torch.set_default_device("cpu")
         torch.set_default_dtype(default_dtype)
 

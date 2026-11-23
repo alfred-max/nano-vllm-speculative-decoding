@@ -1,0 +1,30 @@
+{
+  "tag": "p-split",
+  "model": "/home/shijiawei/models/Qwen3-8B",
+  "commit": "833483c",
+  "timestamp": "2026-11-23T17:55:12",
+  "num_seqs": 32,
+  "input_tokens": 3038,
+  "output_tokens": 3072,
+  "elapsed_s": 28.266,
+  "throughput_tok_s": 108.68,
+  "total_tok_s": 216.16,
+  "max_tokens": 96,
+  "temperature": 0.0,
+  "enforce_eager": false,
+  "max_num_seqs": 32,
+  "tensor_parallel_size": 1,
+  "gpu_memory_utilization": 0.9,
+  "spec": "dspark",
+  "prompt_file": "/home/shijiawei/program/DeepSpec/eval_datasets/mt-bench.jsonl",
+  "chat_template": true,
+  "spec_adaptive": false,
+  "spec_stats": {
+    "steps": 80,
+    "seq_steps": 942,
+    "accept_len": 3.234,
+    "accept_rate": 0.319,
+    "mean_rows": 8.0
+  },
+  "outputs_file": "bench_results/p-split.outputs.json"
+}

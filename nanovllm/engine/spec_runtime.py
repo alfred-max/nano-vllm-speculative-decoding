@@ -1,5 +1,6 @@
 import torch
 import time
+import os
 
 from nanovllm.config import Config
 from nanovllm.engine.sequence import Sequence
@@ -132,4 +133,8 @@ class SpecRuntime:
         if ns and self.model_runner.verify_graphs:
             allowed = [x for x in ns if x <= best_rows]
             best_rows = allowed[-1] if allowed else ns[0]
+        if os.environ.get("NANOVLLM_DEBUG_CHOOSE"):
+            if getattr(self, "_dbg", 0) <= 3:
+                print(f"[choose] bs={bs} surv={[round(x, 3) for x in surv]} "
+                    f"a={a:.4f}s b={b:.2e} -> rows={best_rows}")
         return best_rows

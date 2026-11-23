@@ -1,4 +1,5 @@
 import torch
+import time
 
 from nanovllm.engine.drafter_cache import DrafterKVCache
 from nanovllm.models.block_drafter import BlockDrafter, _apply_rope
