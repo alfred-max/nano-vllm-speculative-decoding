@@ -1,6 +1,7 @@
 import pickle
 import torch
 import torch.distributed as dist
+import os
 from multiprocessing.synchronize import Event
 from multiprocessing.shared_memory import SharedMemory
 
@@ -247,8 +248,10 @@ class ModelRunner:
         cu_seqlens_k = torch.tensor(cu_seqlens_k, dtype=torch.int32, pin_memory=True).cuda(non_blocking=True)
         slot_mapping = torch.tensor(slot_mapping, dtype=torch.int32, pin_memory=True).cuda(non_blocking=True)
         block_tables = self.prepare_block_tables(seqs)
-        context_lens = (torch.tensor(context_lens, dtype=torch.int32, pin_memory=True).cuda(non_blocking=True)
-                        if len(lengths) == 1 else None)
+        context_lens = None if os.environ.get("NANOVLLM_FORCE_VARLEN") else (
+            torch.tensor(context_lens, dtype=torch.int32, pin_memory=True).cuda(non_blocking=True)
+            if len(lengths) == 1 else None
+        )
         set_context("verify", cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k,
                     slot_mapping, context_lens, block_tables)
         self.aux_positions = positions

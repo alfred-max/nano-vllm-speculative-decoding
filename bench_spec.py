@@ -121,7 +121,7 @@ def main():
         for _ in prompts
     ]
 
-    llm.generate(["warmup"], SamplingParams(max_tokens=8, ignore_eos=True))
+    llm.generate(prompts[:1], [SamplingParams(temperature=args.temperature, max_tokens=8, ignore_eos=True)])
 
     start = time.perf_counter()
     outputs = llm.generate(prompts, sampling_params, use_tqdm=False)

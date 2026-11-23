@@ -1,0 +1,28 @@
+{
+  "tag": "ck-df-eager",
+  "model": "/home/shijiawei/models/Qwen3-8B",
+  "commit": "29b69b8",
+  "timestamp": "2026-11-23T12:02:06",
+  "num_seqs": 16,
+  "input_tokens": 1454,
+  "output_tokens": 1536,
+  "elapsed_s": 2.644,
+  "throughput_tok_s": 581.01,
+  "total_tok_s": 1131.01,
+  "max_tokens": 96,
+  "temperature": 0.0,
+  "enforce_eager": true,
+  "max_num_seqs": 16,
+  "tensor_parallel_size": 1,
+  "gpu_memory_utilization": 0.9,
+  "spec": "dflash",
+  "prompt_file": "/home/shijiawei/program/DeepSpec/eval_datasets/gsm8k.jsonl",
+  "chat_template": true,
+  "spec_stats": {
+    "steps": 31,
+    "seq_steps": 303,
+    "accept_len": 5.04,
+    "accept_rate": 0.577
+  },
+  "outputs_file": "bench_results/ck-df-eager.outputs.json"
+}
