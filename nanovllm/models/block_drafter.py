@@ -84,6 +84,30 @@ class DrafterAttention(nn.Module):
                                    causal=False, softmax_scale=self.scaling)
         return self.o_proj(o.reshape(-1, self.num_heads * self.head_dim))
 
+class MarkovHead(nn.Module):
+    """一阶马尔可夫头：bias = W2 @ W1[prev_token]。"""
+
+    def __init__(self, vocab_size: int, rank: int):
+        super().__init__()
+        self.markov_w1 = nn.Embedding(vocab_size, rank)
+        self.markov_w2 = nn.Linear(rank, vocab_size, bias=False)
+
+    def prev_embedding(self, token_ids):
+        return self.markov_w1(token_ids.long())
+
+    def step_bias(self, prev_token_ids):
+        return self.markov_w2(self.prev_embedding(prev_token_ids))
+
+
+class ConfidenceHead(nn.Module):
+
+    def __init__(self, input_dim: int):
+        super().__init__()
+        self.proj = nn.Linear(input_dim, 1)
+
+    def forward(self, features):
+        return self.proj(features).squeeze(-1)
+
 class DrafterMLP(nn.Module):
 
     def __init__(self, hidden_size, intermediate_size):
@@ -148,6 +172,16 @@ class BlockDrafter(nn.Module):
             rope_theta = getattr(cfg, "rope_parameters", {}).get("rope_theta", 1000000.0)
         self.rotary_emb = get_rope(cfg.head_dim, cfg.head_dim, cfg.max_position_embeddings, rope_theta)
 
+        self.markov_rank = int(getattr(cfg, "markov_rank", 0) or 0)
+        self.markov_head = (
+            MarkovHead(cfg.vocab_size, self.markov_rank) if self.markov_rank > 0 else None
+        )
+        self.confidence_head = None
+        self.confidence_with_markov = bool(getattr(cfg, "confidence_head_with_markov", False))
+        if getattr(cfg, "enable_confidence_head", False):
+            input_dim = cfg.hidden_size + (self.markov_rank if self.confidence_with_markov else 0)
+            self.confidence_head = ConfidenceHead(input_dim)
+
     @torch.inference_mode()
     def draft_block(self, anchor_ids: torch.Tensor, ctx_raw: torch.Tensor, ctx_lens: list[int]) -> torch.Tensor:
         """anchor_ids: [B]；ctx_raw: [sum(ctx_lens), 5*H]；返回 logits [B, W, V]。"""
@@ -180,7 +214,7 @@ class BlockDrafter(nn.Module):
     
     # BlockDrafter 里追加
     @torch.inference_mode()
-    def draft_block_cached(self, anchor_ids, ctx_k, ctx_v, ctx_lens):
+    def draft_block_cached(self, anchor_ids, ctx_k, ctx_v, ctx_lens, return_hidden=False):
         """ctx_k/ctx_v: [num_layers, sum(ctx_lens), kv_heads, dim]，已做完 k_norm + RoPE。"""
         B, W = anchor_ids.shape[0], self.block_size
         device = anchor_ids.device
@@ -204,4 +238,8 @@ class BlockDrafter(nn.Module):
         for i, layer in enumerate(self.layers):
             h = layer.forward_cached(h, ctx_k[i], ctx_v[i], self.rotary_emb,
                                      torch.cat(q_pos), cu_q, cu_k, W, max_k)
-        return self.lm_head(self.norm(h)).view(B, W, -1)
+        h = self.norm(h)
+        logits = self.lm_head(h).view(B, W, -1)
+        if return_hidden:
+            return logits, h.view(B, W, -1)
+        return logits

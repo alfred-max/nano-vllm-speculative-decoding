@@ -36,9 +36,14 @@ class SpecRuntime:
         self.stats = SpecStats()
         if self.needs_hidden:
             from transformers import AutoConfig
-            from nanovllm.spec.dflash import DFlashDrafter
             dcfg = AutoConfig.from_pretrained(config.draft_model)
-            self.drafter = DFlashDrafter(
+            if config.spec_method == "dspark":
+                from nanovllm.spec.dspark import DSparkDrafter
+                cls = DSparkDrafter
+            else:
+                from nanovllm.spec.dflash import DFlashDrafter
+                cls = DFlashDrafter
+            self.drafter = cls(
                 dcfg, config.draft_model, self.gamma,
                 num_blocks=config.num_kvcache_blocks,
                 block_size=config.kvcache_block_size,

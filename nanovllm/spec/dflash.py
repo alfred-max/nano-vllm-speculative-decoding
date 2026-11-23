@@ -46,32 +46,25 @@ class DFlashDrafter(Drafter):
 
     @torch.inference_mode()
     def propose(self, seqs) -> DraftProposal:
-        W = self.model.block_size
-        ctx_lens, ks, vs = [], [], []
-        cu_q, cu_k = [0], [0]
-        q_off = k_off = 0
-        q_pos = []
-        device = self.cache.k.device
+        if not seqs:
+            return DraftProposal([], [], None)
+        ctx_k, ctx_v, ctx_lens, anchors = self._gather(seqs)
+        logits = self.model.draft_block_cached(anchors, ctx_k, ctx_v, ctx_lens)
+        tokens = logits.argmax(dim=-1).tolist()
+        logprobs = [[0.0] * len(t) for t in tokens]
+        return DraftProposal(tokens, logprobs, None)
 
+    def _gather(self, seqs):
+        W = self.model.block_size
+        device = self.cache.k.device
+        ks, vs, ctx_lens = [], [], []
         for seq in seqs:
             L = len(seq) - 1
             k, v = self.cache.gather(seq, L)
             ks.append(k)
             vs.append(v)
             ctx_lens.append(L)
-            q_pos.append(torch.arange(L, L + W, device=device))
-            q_off += W
-            k_off += L + W
-            cu_q.append(q_off)
-            cu_k.append(k_off)
-
-        if not seqs:
-            return DraftProposal([], [])
-
         ctx_k = torch.cat(ks, dim=1)
         ctx_v = torch.cat(vs, dim=1)
         anchors = torch.tensor([seq.last_token for seq in seqs], device=device)
-        logits = self.model.draft_block_cached(anchors, ctx_k, ctx_v, ctx_lens)
-        tokens = logits.argmax(dim=-1).tolist()
-        logprobs = [[0.0] * len(t) for t in tokens]     # greedy：点质量
-        return DraftProposal(tokens, logprobs)
+        return ctx_k, ctx_v, ctx_lens, anchors
