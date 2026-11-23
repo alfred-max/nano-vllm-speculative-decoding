@@ -24,6 +24,7 @@ class Config:
     drafter_layers: int = 0
     drafter_kv_heads: int = 0
     drafter_head_dim: int = 0
+    spec_adaptive: bool = False
 
     def __post_init__(self):
         assert os.path.isdir(self.model)

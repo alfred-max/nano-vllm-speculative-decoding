@@ -83,6 +83,7 @@ def main():
     parser.add_argument("--spec", default="none", choices=["none", "naive", "dflash", "dspark"])
     parser.add_argument("--draft-model", default=None)
     parser.add_argument("--chat-template", action="store_true")
+    parser.add_argument("--spec-adaptive", action="store_true")
     args = parser.parse_args()
 
     llm = LLM(
@@ -95,6 +96,7 @@ def main():
         spec_method=args.spec,
         num_speculative_tokens=args.num_speculative_tokens,
         draft_model=args.draft_model,
+        spec_adaptive=args.spec_adaptive,
     )
     prompts = load_prompts(args)
     tok = llm.tokenizer
@@ -149,6 +151,7 @@ def main():
         "spec": args.spec,
         "prompt_file": args.prompt_file,
         "chat_template": args.chat_template,
+        "spec_adaptive": args.spec_adaptive,
     }
 
     if getattr(llm, "spec_runtime", None) is not None:
@@ -158,6 +161,7 @@ def main():
             "seq_steps": s.seq_steps,
             "accept_len": round(s.accept_len, 3),
             "accept_rate": round(s.accept_rate, 3),
+            "mean_rows": round(s.mean_rows, 2),
         }
 
     os.makedirs(args.out_dir, exist_ok=True)

@@ -2,6 +2,7 @@ import pickle
 import torch
 import torch.distributed as dist
 import os
+import time
 from multiprocessing.synchronize import Event
 from multiprocessing.shared_memory import SharedMemory
 
@@ -28,6 +29,8 @@ class ModelRunner:
         self.verify_vars = None
         self.num_speculative_tokens = config.num_speculative_tokens
         self._used_graph = False
+        self.verify_graph_ns = [2]
+        self.cost_a, self.cost_b = 1.0, 0.0
 
         dist.init_process_group("nccl", "tcp://localhost:2333", world_size=self.world_size, rank=rank)
         torch.cuda.set_device(rank)
@@ -55,6 +58,11 @@ class ModelRunner:
             self.capture_cudagraph()
             if self.num_speculative_tokens > 0:
                 self.capture_verify_cudagraph()
+                if config.spec_adaptive:
+                    fit = self.profile_verify_cost()
+                    if fit is not None:
+                        self.cost_a, self.cost_b = fit
+                        print(f"[cost] T(V) = {self.cost_a:.2f} + {self.cost_b*1e6:.2f}e-6 * V  ms (V = bs*rows)")
         torch.set_default_device("cpu")
         torch.set_default_dtype(default_dtype)
 
@@ -300,20 +308,21 @@ class ModelRunner:
 
     @torch.inference_mode()
     def run_verify(self, seqs: list[Sequence]) -> torch.Tensor:
-        if (not self.enforce_eager and self.verify_graphs and self.rank == 0
-                and all(len(s.draft_token_ids) == self.num_speculative_tokens for s in seqs)):
-            tier = next((b for b in self.verify_graph_bs if b >= len(seqs)), None)
-            if tier is not None:
-                self._used_graph = True
-                return self._run_verify_graph(seqs, tier)
+        if seqs and not self.enforce_eager and self.verify_graphs and self.rank == 0:
+            n_drafts = len(seqs[0].draft_token_ids)
+            n = 1 + n_drafts
+            if all(len(s.draft_token_ids) == n_drafts for s in seqs):
+                tier = next((b for b in self.verify_graph_bs if b >= len(seqs)), None)
+                if tier is not None and (n, tier) in self.verify_graphs:
+                    self._used_graph = True
+                    return self._run_verify_graph(seqs, tier, n)
         self._used_graph = False
         input_ids, positions = self.prepare_verify(seqs)
         logits = self.run_model(input_ids, positions, mode="verify")
         reset_context()
         return logits
 
-    def _run_verify_graph(self, seqs, bs):
-        n = 1 + self.num_speculative_tokens
+    def _run_verify_graph(self, seqs, bs, n):
         v = self.verify_vars
         real = len(seqs)
         rows = real * n
@@ -349,7 +358,7 @@ class ModelRunner:
         v["block_tables"][:bs].copy_(bt, non_blocking=True)
 
         set_context("verify")
-        self.verify_graphs[bs].replay()
+        self.verify_graphs[(n, bs)].replay()
 
         self.last_aux = v["aux"][:rows].reshape(rows, -1)
         self.aux_positions = torch.tensor(positions, dtype=torch.int64, device="cuda")
@@ -397,18 +406,20 @@ class ModelRunner:
     def capture_verify_cudagraph(self):
         config = self.config
         hf_config = config.hf_config
-        n = 1 + self.num_speculative_tokens
+        max_n = 1 + self.num_speculative_tokens
+        ns = sorted({2, max(2, max_n // 2), max_n})
+        self.verify_graph_ns = [n for n in ns if 2 <= n <= max_n]
         max_bs = self.verify_max_bs
         max_blocks = (config.max_model_len + self.block_size - 1) // self.block_size
         tiers = [1, 2, 4, 8] + list(range(16, max_bs + 1, 16))
         self.verify_graph_bs = sorted({b for b in tiers if b <= max_bs})
 
-        total = max_bs * n
+        total = max_bs * max_n
         self.verify_vars = dict(
             input_ids=torch.zeros(total, dtype=torch.int64),
             positions=torch.zeros(total, dtype=torch.int64),
             slot_mapping=torch.zeros(total, dtype=torch.int32),
-            context_lens=torch.full((max_bs,), n, dtype=torch.int32),
+            context_lens=torch.zeros(max_bs, dtype=torch.int32),
             block_tables=torch.zeros(max_bs, max_blocks, dtype=torch.int32),
             outputs=torch.zeros(total, hf_config.hidden_size),
             aux=torch.zeros(total, self.aux_layers, hf_config.hidden_size, dtype=hf_config.dtype),
@@ -417,25 +428,63 @@ class ModelRunner:
         v["slot_mapping"].copy_(
             torch.arange(total, dtype=torch.int32) % (config.num_kvcache_blocks * self.block_size)
         )
+
         pool = None
-        for bs in reversed(self.verify_graph_bs):
-            graph = torch.cuda.CUDAGraph()
-            set_context("verify",
-                        slot_mapping=v["slot_mapping"][:bs * n],
-                        context_lens=v["context_lens"][:bs],
-                        block_tables=v["block_tables"][:bs])
-            v["outputs"][:bs * n] = self.model(v["input_ids"][:bs * n], v["positions"][:bs * n],
-                                               aux_out=v["aux"][:bs * n], aux_slots=self.aux_slots)
-            with torch.cuda.graph(graph, pool):
+        for n in reversed(self.verify_graph_ns):
+            v["context_lens"][:max_bs] = n
+            for bs in reversed(self.verify_graph_bs):
+                graph = torch.cuda.CUDAGraph()
+                set_context("verify",
+                            slot_mapping=v["slot_mapping"][:bs * n],
+                            context_lens=v["context_lens"][:bs],
+                            block_tables=v["block_tables"][:bs])
                 v["outputs"][:bs * n] = self.model(v["input_ids"][:bs * n], v["positions"][:bs * n],
                                                    aux_out=v["aux"][:bs * n], aux_slots=self.aux_slots)
-            if pool is None:
-                pool = graph.pool()
-            self.verify_graphs[bs] = graph
-            torch.cuda.synchronize()
-            reset_context()
+                with torch.cuda.graph(graph, pool):
+                    v["outputs"][:bs * n] = self.model(v["input_ids"][:bs * n], v["positions"][:bs * n],
+                                                       aux_out=v["aux"][:bs * n], aux_slots=self.aux_slots)
+                if pool is None:
+                    pool = graph.pool()
+                self.verify_graphs[(n, bs)] = graph
+                torch.cuda.synchronize()
+                reset_context()
 
     def take_aux(self):
         aux, positions, cu = self.last_aux, self.aux_positions, self.aux_cu_seqlens
         self.last_aux = None
         return aux, positions, cu
+
+    @torch.inference_mode()
+    def profile_verify_cost(self, ctx_len: int = 512):
+        """用最大的 bs 档测两个 n 点的耗时，拟合 T(V) = a + b*V（V = bs*rows）。"""
+        if not self.verify_graphs or len(self.verify_graph_ns) < 2:
+            return None
+        tier = self.verify_graph_bs[-1]
+        ns = self.verify_graph_ns
+        v = self.verify_vars
+        v["context_lens"][:tier] = min(ctx_len, self.config.max_model_len)
+
+        times = {}
+        for n in (ns[0], ns[-1]):
+            g = self.verify_graphs.get((n, tier))
+            if g is None:
+                continue
+            for _ in range(2):
+                g.replay()
+            torch.cuda.synchronize()
+            t0 = time.perf_counter()
+            for _ in range(3):
+                g.replay()
+            torch.cuda.synchronize()
+            times[n] = (time.perf_counter() - t0) / 3
+
+        if len(times) < 2:
+            return None
+        n1, n2 = ns[0], ns[-1]
+        v1, v2 = tier * n1, tier * n2
+        t1, t2 = times[n1], times[n2]
+        if v2 <= v1 or t2 <= t1:
+            return None
+        b = (t2 - t1) / (v2 - v1)
+        a = t1 - b * v1
+        return max(a, 1e-3), max(b, 1e-9)
