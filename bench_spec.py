@@ -80,7 +80,7 @@ def main():
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.9)
     parser.add_argument("--tensor-parallel-size", type=int, default=1)
     parser.add_argument("--num-speculative-tokens", type=int, default=7)
-    parser.add_argument("--spec", default="none", choices=["none", "naive", "dflash"])
+    parser.add_argument("--spec", default="none", choices=["none", "naive", "dflash", "dspark"])
     parser.add_argument("--draft-model", default=None)
     parser.add_argument("--chat-template", action="store_true")
     args = parser.parse_args()
