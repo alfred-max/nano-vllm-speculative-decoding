@@ -1,0 +1,30 @@
+{
+  "tag": "cmp-mt-bench-dflash-c32-r0",
+  "model": "/home/shijiawei/models/Qwen3-8B",
+  "commit": "25c604b",
+  "timestamp": "2026-11-23T20:34:20",
+  "num_seqs": 32,
+  "input_tokens": 3038,
+  "output_tokens": 3072,
+  "elapsed_s": 5.866,
+  "throughput_tok_s": 523.7,
+  "total_tok_s": 1041.61,
+  "max_tokens": 96,
+  "temperature": 0.0,
+  "enforce_eager": false,
+  "max_num_seqs": 32,
+  "tensor_parallel_size": 1,
+  "gpu_memory_utilization": 0.9,
+  "spec": "dflash",
+  "prompt_file": "/home/shijiawei/program/DeepSpec/eval_datasets/mt-bench.jsonl",
+  "chat_template": true,
+  "spec_adaptive": false,
+  "spec_stats": {
+    "steps": 55,
+    "seq_steps": 1068,
+    "accept_len": 2.853,
+    "accept_rate": 0.265,
+    "mean_rows": 8.0
+  },
+  "outputs_file": "bench_results/cmp-mt-bench-dflash-c32-r0.outputs.json"
+}

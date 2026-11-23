@@ -1,0 +1,30 @@
+{
+  "tag": "cmp-mt-bench-dspark-c32-r0",
+  "model": "/home/shijiawei/models/Qwen3-8B",
+  "commit": "25c604b",
+  "timestamp": "2026-11-23T20:37:50",
+  "num_seqs": 32,
+  "input_tokens": 3038,
+  "output_tokens": 3072,
+  "elapsed_s": 5.297,
+  "throughput_tok_s": 579.98,
+  "total_tok_s": 1153.54,
+  "max_tokens": 96,
+  "temperature": 0.0,
+  "enforce_eager": false,
+  "max_num_seqs": 32,
+  "tensor_parallel_size": 1,
+  "gpu_memory_utilization": 0.9,
+  "spec": "dspark",
+  "prompt_file": "/home/shijiawei/program/DeepSpec/eval_datasets/mt-bench.jsonl",
+  "chat_template": true,
+  "spec_adaptive": false,
+  "spec_stats": {
+    "steps": 53,
+    "seq_steps": 949,
+    "accept_len": 3.211,
+    "accept_rate": 0.316,
+    "mean_rows": 8.0
+  },
+  "outputs_file": "bench_results/cmp-mt-bench-dspark-c32-r0.outputs.json"
+}

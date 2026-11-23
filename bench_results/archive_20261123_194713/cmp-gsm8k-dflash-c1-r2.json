@@ -1,0 +1,30 @@
+{
+  "tag": "cmp-gsm8k-dflash-c1-r2",
+  "model": "/home/shijiawei/models/Qwen3-8B",
+  "commit": "25c604b",
+  "timestamp": "2026-11-23T19:18:29",
+  "num_seqs": 1,
+  "input_tokens": 92,
+  "output_tokens": 96,
+  "elapsed_s": 1.957,
+  "throughput_tok_s": 49.06,
+  "total_tok_s": 96.07,
+  "max_tokens": 96,
+  "temperature": 0.0,
+  "enforce_eager": false,
+  "max_num_seqs": 1,
+  "tensor_parallel_size": 1,
+  "gpu_memory_utilization": 0.9,
+  "spec": "dflash",
+  "prompt_file": "/home/shijiawei/program/DeepSpec/eval_datasets/gsm8k.jsonl",
+  "chat_template": true,
+  "spec_adaptive": false,
+  "spec_stats": {
+    "steps": 19,
+    "seq_steps": 19,
+    "accept_len": 5.368,
+    "accept_rate": 0.624,
+    "mean_rows": 8.0
+  },
+  "outputs_file": "bench_results/cmp-gsm8k-dflash-c1-r2.outputs.json"
+}

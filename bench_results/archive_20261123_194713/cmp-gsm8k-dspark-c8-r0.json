@@ -1,0 +1,30 @@
+{
+  "tag": "cmp-gsm8k-dspark-c8-r0",
+  "model": "/home/shijiawei/models/Qwen3-8B",
+  "commit": "25c604b",
+  "timestamp": "2026-11-23T18:56:53",
+  "num_seqs": 8,
+  "input_tokens": 678,
+  "output_tokens": 768,
+  "elapsed_s": 5.127,
+  "throughput_tok_s": 149.81,
+  "total_tok_s": 282.06,
+  "max_tokens": 96,
+  "temperature": 0.0,
+  "enforce_eager": false,
+  "max_num_seqs": 8,
+  "tensor_parallel_size": 1,
+  "gpu_memory_utilization": 0.9,
+  "spec": "dspark",
+  "prompt_file": "/home/shijiawei/program/DeepSpec/eval_datasets/gsm8k.jsonl",
+  "chat_template": true,
+  "spec_adaptive": false,
+  "spec_stats": {
+    "steps": 21,
+    "seq_steps": 134,
+    "accept_len": 5.724,
+    "accept_rate": 0.675,
+    "mean_rows": 8.0
+  },
+  "outputs_file": "bench_results/cmp-gsm8k-dspark-c8-r0.outputs.json"
+}

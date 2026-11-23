@@ -1,0 +1,23 @@
+{
+  "tag": "cmp-gsm8k-base-c4-r0",
+  "model": "/home/shijiawei/models/Qwen3-8B",
+  "commit": "25c604b",
+  "timestamp": "2026-11-23T19:48:14",
+  "num_seqs": 4,
+  "input_tokens": 291,
+  "output_tokens": 384,
+  "elapsed_s": 2.68,
+  "throughput_tok_s": 143.29,
+  "total_tok_s": 251.87,
+  "max_tokens": 96,
+  "temperature": 0.0,
+  "enforce_eager": false,
+  "max_num_seqs": 4,
+  "tensor_parallel_size": 1,
+  "gpu_memory_utilization": 0.9,
+  "spec": "none",
+  "prompt_file": "/home/shijiawei/program/DeepSpec/eval_datasets/gsm8k.jsonl",
+  "chat_template": true,
+  "spec_adaptive": false,
+  "outputs_file": "bench_results/cmp-gsm8k-base-c4-r0.outputs.json"
+}

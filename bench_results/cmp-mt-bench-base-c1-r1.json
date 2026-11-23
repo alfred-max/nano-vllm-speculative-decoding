@@ -1,0 +1,23 @@
+{
+  "tag": "cmp-mt-bench-base-c1-r1",
+  "model": "/home/shijiawei/models/Qwen3-8B",
+  "commit": "25c604b",
+  "timestamp": "2026-11-23T20:41:35",
+  "num_seqs": 1,
+  "input_tokens": 57,
+  "output_tokens": 96,
+  "elapsed_s": 2.144,
+  "throughput_tok_s": 44.78,
+  "total_tok_s": 71.36,
+  "max_tokens": 96,
+  "temperature": 0.0,
+  "enforce_eager": false,
+  "max_num_seqs": 1,
+  "tensor_parallel_size": 1,
+  "gpu_memory_utilization": 0.9,
+  "spec": "none",
+  "prompt_file": "/home/shijiawei/program/DeepSpec/eval_datasets/mt-bench.jsonl",
+  "chat_template": true,
+  "spec_adaptive": false,
+  "outputs_file": "bench_results/cmp-mt-bench-base-c1-r1.outputs.json"
+}
