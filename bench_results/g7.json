@@ -1,14 +1,14 @@
 {
   "tag": "g7",
   "model": "/home/shijiawei/models/Qwen3-8B",
-  "commit": "f4322d4",
-  "timestamp": "2026-11-22T23:03:05",
+  "commit": "d28e229",
+  "timestamp": "2026-11-23T11:32:12",
   "num_seqs": 1,
   "input_tokens": 92,
   "output_tokens": 16,
-  "elapsed_s": 0.291,
-  "throughput_tok_s": 54.95,
-  "total_tok_s": 370.91,
+  "elapsed_s": 0.2,
+  "throughput_tok_s": 79.81,
+  "total_tok_s": 538.7,
   "max_tokens": 16,
   "temperature": 0.0,
   "enforce_eager": false,
@@ -19,10 +19,10 @@
   "prompt_file": "/home/shijiawei/program/DeepSpec/eval_datasets/gsm8k.jsonl",
   "chat_template": true,
   "spec_stats": {
-    "steps": 9,
-    "seq_steps": 9,
-    "accept_len": 2.444,
-    "accept_rate": 0.289
+    "steps": 10,
+    "seq_steps": 10,
+    "accept_len": 2.2,
+    "accept_rate": 0.245
   },
   "outputs_file": "bench_results/g7.outputs.json"
 }

@@ -170,15 +170,13 @@ class Qwen3Model(nn.Module):
         self.layers = nn.ModuleList([Qwen3DecoderLayer(config) for _ in range(config.num_hidden_layers)])
         self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 
-    def forward(
-        self,
-        input_ids: torch.Tensor,
-        positions: torch.Tensor,
-    ) -> torch.Tensor:
+    def forward(self, input_ids, positions, aux_out=None, aux_slots=None):
         hidden_states = self.embed_tokens(input_ids)
         residual = None
-        for layer in self.layers:
+        for i, layer in enumerate(self.layers):
             hidden_states, residual = layer(positions, hidden_states, residual)
+            if aux_slots is not None and i in aux_slots:
+                aux_out[:, aux_slots[i], :].copy_(hidden_states + residual)
         hidden_states, _ = self.norm(hidden_states, residual)
         return hidden_states
 
@@ -202,12 +200,8 @@ class Qwen3ForCausalLM(nn.Module):
         if config.tie_word_embeddings:
             self.lm_head.weight.data = self.model.embed_tokens.weight.data
 
-    def forward(
-        self,
-        input_ids: torch.Tensor,
-        positions: torch.Tensor,
-    ) -> torch.Tensor:
-        return self.model(input_ids, positions)
+    def forward(self, input_ids, positions, aux_out=None, aux_slots=None):
+        return self.model(input_ids, positions, aux_out=aux_out, aux_slots=aux_slots)
 
     def compute_logits(
         self,

@@ -63,7 +63,6 @@ class SpecRuntime:
         for seq, toks, lps in zip(seqs, proposal.token_ids, proposal.logprobs):
             budget = max(0, min(
                 self.gamma,
-                seq.max_tokens - seq.num_completion_tokens,
                 self.config.max_model_len - len(seq),
             ))
             seq.draft_token_ids = toks[:budget]
@@ -86,7 +85,8 @@ class SpecRuntime:
         self._dbg += 1
         if self._dbg <= 6:
             print(f"[timing] propose={1000*(t1-t0):6.1f}  verify={1000*(t2-t1):6.1f}  "
-                  f"commit={1000*(t3-t2):5.1f}  ingest={1000*(t4-t3):5.1f} ms")
+                  f"commit={1000*(t3-t2):5.1f}  ingest={1000*(t4-t3):5.1f} ms"
+                  f"graph={self.model_runner._used_graph}")
                   
         self.stats.steps += 1
         self.stats.seq_steps += len(seqs)
@@ -95,6 +95,4 @@ class SpecRuntime:
             self.stats.committed += keep
             self.stats.drafted += len(d)
             self.stats.accepted += max(0, keep - 1)
-        print(f"[dbg] drafts={[len(d) for d in keep_tokens]} committed={[len(c) for c in committed]} "
-              f"lens={[len(s) for s in seqs]}")
         return committed

@@ -58,19 +58,33 @@ class Attention(nn.Module):
 
     def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):
         context = get_context()
-        # print("block table : ", context.block_tables)
         k_cache, v_cache = self.k_cache, self.v_cache
         if k_cache.numel() and v_cache.numel():
             store_kvcache(k, v, k_cache, v_cache, context.slot_mapping)
+
         if context.is_varlen:
-            if context.block_tables is not None:    # prefill 的 prefix cache / verify
+            if context.context_lens is not None:
+                # verify：每序列行数相同 → 用 decode 的 kernel（无 max_seqlen_k，可进 graph）
+                bs = context.context_lens.numel()
+                q4 = q.view(bs, -1, self.num_heads, self.head_dim)
+                o = flash_attn_with_kvcache(
+                    q4, k_cache, v_cache,
+                    cache_seqlens=context.context_lens,
+                    block_table=context.block_tables,
+                    softmax_scale=self.scale,
+                    causal=True,
+                )
+                return o.reshape(-1, self.num_heads, self.head_dim)
+
+            # ragged（DSpark 以后用）：退回 varlen
+            if context.block_tables is not None:
                 k, v = k_cache, v_cache
             o = flash_attn_varlen_func(q, k, v,
                                        max_seqlen_q=context.max_seqlen_q, cu_seqlens_q=context.cu_seqlens_q,
                                        max_seqlen_k=context.max_seqlen_k, cu_seqlens_k=context.cu_seqlens_k,
                                        softmax_scale=self.scale, causal=True, block_table=context.block_tables)
-        else:    # decode
+        else:
             o = flash_attn_with_kvcache(q.unsqueeze(1), k_cache, v_cache,
-                                        cache_seqlens=context.context_lens, block_table=context.block_tables, 
+                                        cache_seqlens=context.context_lens, block_table=context.block_tables,
                                         softmax_scale=self.scale, causal=True)
         return o

@@ -1,0 +1,28 @@
+{
+  "tag": "g-on",
+  "model": "/home/shijiawei/models/Qwen3-8B",
+  "commit": "d28e229",
+  "timestamp": "2026-11-23T11:36:51",
+  "num_seqs": 1,
+  "input_tokens": 92,
+  "output_tokens": 64,
+  "elapsed_s": 0.447,
+  "throughput_tok_s": 143.12,
+  "total_tok_s": 348.85,
+  "max_tokens": 64,
+  "temperature": 0.0,
+  "enforce_eager": false,
+  "max_num_seqs": 1,
+  "tensor_parallel_size": 1,
+  "gpu_memory_utilization": 0.9,
+  "spec": "dflash",
+  "prompt_file": "/home/shijiawei/program/DeepSpec/eval_datasets/gsm8k.jsonl",
+  "chat_template": true,
+  "spec_stats": {
+    "steps": 18,
+    "seq_steps": 18,
+    "accept_len": 3.889,
+    "accept_rate": 0.413
+  },
+  "outputs_file": "bench_results/g-on.outputs.json"
+}

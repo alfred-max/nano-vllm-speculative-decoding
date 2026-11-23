@@ -26,6 +26,7 @@ class ModelRunner:
         self.verify_graphs = {}
         self.verify_vars = None
         self.num_speculative_tokens = config.num_speculative_tokens
+        self._used_graph = False
 
         dist.init_process_group("nccl", "tcp://localhost:2333", world_size=self.world_size, rank=rank)
         torch.cuda.set_device(rank)
@@ -35,15 +36,16 @@ class ModelRunner:
         self.model = Qwen3ForCausalLM(hf_config)
         load_model(self.model, config.model)
 
-        self.collector = None
+        self.aux_slots = None
+        self.aux_layers = 0
         self.last_aux = None
         self.aux_positions = None
         self.aux_cu_seqlens = None
         if config.spec_method in ("dflash", "dspark") and rank == 0:
             from transformers import AutoConfig
-            from nanovllm.engine.target_hidden import TargetHiddenCollector
             dcfg = AutoConfig.from_pretrained(config.draft_model)
-            self.collector = TargetHiddenCollector(self.model, dcfg.target_layer_ids, 0)
+            self.aux_slots = {int(lid): i for i, lid in enumerate(dcfg.target_layer_ids)}
+            self.aux_layers = len(dcfg.target_layer_ids)
 
         self.sampler = Sampler()
         self.warmup_model()
@@ -116,7 +118,9 @@ class ModelRunner:
         seqs = [Sequence([0] * seq_len) for _ in range(num_seqs)]
         for seq in seqs:
             seq.num_scheduled_tokens = seq_len
+        saved, self.aux_slots = self.aux_slots, None   # warmup 不需要 aux，省 600MB 峰值
         self.run(seqs, True)
+        self.aux_slots = saved
         torch.cuda.empty_cache()
 
     def allocate_kv_cache(self):
@@ -220,6 +224,8 @@ class ModelRunner:
         max_seqlen_q = 0
         max_seqlen_k = 0
         slot_mapping = []
+        context_lens = []
+        lengths = set()
         for seq in seqs:
             drafts = seq.draft_token_ids[:self.num_speculative_tokens]
             tokens = [seq.last_token, *drafts]
@@ -231,6 +237,8 @@ class ModelRunner:
             cu_seqlens_k.append(cu_seqlens_k[-1] + len(seq) + n - 1)
             max_seqlen_q = max(max_seqlen_q, n)
             max_seqlen_k = max(max_seqlen_k, len(seq) + n - 1)
+            lengths.add(n)
+            context_lens.append(len(seq) + n - 1)
             for p in range(start, start + n):
                 slot_mapping.append(seq.block_table[p // self.block_size] * self.block_size + p % self.block_size)
         input_ids = torch.tensor(input_ids, dtype=torch.int64, pin_memory=True).cuda(non_blocking=True)
@@ -239,7 +247,10 @@ class ModelRunner:
         cu_seqlens_k = torch.tensor(cu_seqlens_k, dtype=torch.int32, pin_memory=True).cuda(non_blocking=True)
         slot_mapping = torch.tensor(slot_mapping, dtype=torch.int32, pin_memory=True).cuda(non_blocking=True)
         block_tables = self.prepare_block_tables(seqs)
-        set_context("verify", cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k, slot_mapping, None, block_tables)
+        context_lens = (torch.tensor(context_lens, dtype=torch.int32, pin_memory=True).cuda(non_blocking=True)
+                        if len(lengths) == 1 else None)
+        set_context("verify", cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k,
+                    slot_mapping, context_lens, block_tables)
         self.aux_positions = positions
         self.aux_cu_seqlens = cu_seqlens_q.tolist()
         return input_ids, positions
@@ -252,10 +263,14 @@ class ModelRunner:
     @torch.inference_mode()
     def run_model(self, input_ids: torch.Tensor, positions: torch.Tensor, mode: str = "decode"):
         if mode != "decode" or self.enforce_eager or input_ids.size(0) > 512:
-            hidden = self.model(input_ids, positions)
+            aux = None
+            if self.aux_slots is not None:
+                aux = torch.empty(input_ids.size(0), self.aux_layers, self.config.hf_config.hidden_size,
+                                  dtype=self.config.hf_config.dtype, device=input_ids.device)
+            hidden = self.model(input_ids, positions, aux_out=aux, aux_slots=self.aux_slots)
             logits = self.model.compute_logits(hidden)
-            if self.collector is not None:
-                self.last_aux = self.collector.take()
+            if aux is not None:
+                self.last_aux = aux.reshape(aux.size(0), -1)
             return logits
         else:
             bs = input_ids.size(0)
@@ -286,7 +301,9 @@ class ModelRunner:
                 and all(len(s.draft_token_ids) == self.num_speculative_tokens for s in seqs)):
             tier = next((b for b in self.verify_graph_bs if b >= len(seqs)), None)
             if tier is not None:
+                self._used_graph = True
                 return self._run_verify_graph(seqs, tier)
+        self._used_graph = False
         input_ids, positions = self.prepare_verify(seqs)
         logits = self.run_model(input_ids, positions, mode="verify")
         reset_context()
@@ -298,28 +315,25 @@ class ModelRunner:
         real = len(seqs)
         rows = real * n
 
-        input_ids, positions, slot_mapping, cu_k = [], [], [], [0]
+        input_ids, positions, slot_mapping, context_lens = [], [], [], []
         for seq in seqs:
             tokens = [seq.last_token, *seq.draft_token_ids]
             start = len(seq) - 1
             input_ids.extend(tokens)
             positions.extend(range(start, start + n))
-            cu_k.append(cu_k[-1] + len(seq) + n - 1)
+            context_lens.append(len(seq) + n - 1)
             for p in range(start, start + n):
                 slot_mapping.append(seq.block_table[p // self.block_size] * self.block_size + p % self.block_size)
 
-        # 补位：复制第一条序列（写同一批 slot、同样的值，无害）
         pad = bs - real
         if pad:
-            length = cu_k[1]
             for _ in range(pad):
                 input_ids.extend(input_ids[:n])
                 positions.extend(positions[:n])
                 slot_mapping.extend(slot_mapping[:n])
-                cu_k.append(cu_k[-1] + length)
+                context_lens.append(context_lens[0])
 
-        max_blocks = v["block_tables"].size(1)
-        bt = torch.full((bs, max_blocks), -1, dtype=torch.int32)
+        bt = torch.zeros((bs, v["block_tables"].size(1)), dtype=torch.int32)
         for i, seq in enumerate(seqs):
             bt[i, :len(seq.block_table)] = torch.tensor(seq.block_table, dtype=torch.int32)
         if pad:
@@ -328,11 +342,15 @@ class ModelRunner:
         v["input_ids"][:bs * n].copy_(torch.tensor(input_ids, dtype=torch.int64), non_blocking=True)
         v["positions"][:bs * n].copy_(torch.tensor(positions, dtype=torch.int64), non_blocking=True)
         v["slot_mapping"][:bs * n].copy_(torch.tensor(slot_mapping, dtype=torch.int32), non_blocking=True)
-        v["cu_seqlens_k"][:bs + 1].copy_(torch.tensor(cu_k, dtype=torch.int32), non_blocking=True)
+        v["context_lens"][:bs].copy_(torch.tensor(context_lens, dtype=torch.int32), non_blocking=True)
         v["block_tables"][:bs].copy_(bt, non_blocking=True)
 
         set_context("verify")
         self.verify_graphs[bs].replay()
+
+        self.last_aux = v["aux"][:rows].reshape(rows, -1)
+        self.aux_positions = torch.tensor(positions, dtype=torch.int64, device="cuda")
+        self.aux_cu_seqlens = [i * n for i in range(real + 1)]
         return self.model.compute_logits(v["outputs"][:rows])
 
     @torch.inference_mode()
@@ -379,7 +397,6 @@ class ModelRunner:
         n = 1 + self.num_speculative_tokens
         max_bs = self.verify_max_bs
         max_blocks = (config.max_model_len + self.block_size - 1) // self.block_size
-
         tiers = [1, 2, 4, 8] + list(range(16, max_bs + 1, 16))
         self.verify_graph_bs = sorted({b for b in tiers if b <= max_bs})
 
@@ -388,26 +405,27 @@ class ModelRunner:
             input_ids=torch.zeros(total, dtype=torch.int64),
             positions=torch.zeros(total, dtype=torch.int64),
             slot_mapping=torch.zeros(total, dtype=torch.int32),
-            cu_seqlens_k=torch.zeros(max_bs + 1, dtype=torch.int32),
+            context_lens=torch.full((max_bs,), n, dtype=torch.int32),
             block_tables=torch.zeros(max_bs, max_blocks, dtype=torch.int32),
             outputs=torch.zeros(total, hf_config.hidden_size),
+            aux=torch.zeros(total, self.aux_layers, hf_config.hidden_size, dtype=hf_config.dtype),
         )
         v = self.verify_vars
-        cu_q = torch.arange(0, (max_bs + 1) * n, n, dtype=torch.int32)
+        v["slot_mapping"].copy_(
+            torch.arange(total, dtype=torch.int32) % (config.num_kvcache_blocks * self.block_size)
+        )
         pool = None
-
         for bs in reversed(self.verify_graph_bs):
             graph = torch.cuda.CUDAGraph()
             set_context("verify",
-                        cu_seqlens_q=cu_q[:bs + 1],
-                        cu_seqlens_k=v["cu_seqlens_k"][:bs + 1],
-                        max_seqlen_q=n,
-                        max_seqlen_k=config.max_model_len,
                         slot_mapping=v["slot_mapping"][:bs * n],
+                        context_lens=v["context_lens"][:bs],
                         block_tables=v["block_tables"][:bs])
-            v["outputs"][:bs * n] = self.model(v["input_ids"][:bs * n], v["positions"][:bs * n])
+            v["outputs"][:bs * n] = self.model(v["input_ids"][:bs * n], v["positions"][:bs * n],
+                                               aux_out=v["aux"][:bs * n], aux_slots=self.aux_slots)
             with torch.cuda.graph(graph, pool):
-                v["outputs"][:bs * n] = self.model(v["input_ids"][:bs * n], v["positions"][:bs * n])
+                v["outputs"][:bs * n] = self.model(v["input_ids"][:bs * n], v["positions"][:bs * n],
+                                                   aux_out=v["aux"][:bs * n], aux_slots=self.aux_slots)
             if pool is None:
                 pool = graph.pool()
             self.verify_graphs[bs] = graph
